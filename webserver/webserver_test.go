@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -237,4 +238,42 @@ func TestObfuscate(t *testing.T) {
 	if err == nil {
 		t.Errorf("obfuscate: no errror")
 	}
+}
+
+func TestGroupRedirectKeepsQuery(t *testing.T) {
+	err := setupTest(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("setupTest: %v", err)
+	}
+	err = os.WriteFile(filepath.Join(group.Directory, "redirect.json"),
+		[]byte("{}\n"), 0600)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	check := func(path string, code int, location string) {
+		t.Helper()
+		w := httptest.NewRecorder()
+		groupHandler(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != code {
+			t.Errorf("%v: got %v, expected %v", path, w.Code, code)
+		}
+		if l := w.Header().Get("Location"); l != location {
+			t.Errorf("%v: got location %v, expected %v",
+				path, l, location)
+		}
+	}
+
+	check("/group/redirect?token=abc", http.StatusPermanentRedirect,
+		"/group/redirect/?token=abc")
+	check("/group/redirect", http.StatusPermanentRedirect,
+		"/group/redirect/")
+
+	err = os.WriteFile(filepath.Join(group.DataDirectory, "config.json"),
+		[]byte(`{"canonicalHost": "galene.example.org"}`), 0600)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	check("/group/redirect/?token=abc", http.StatusMovedPermanently,
+		"https://galene.example.org/group/redirect/?token=abc")
 }

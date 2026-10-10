@@ -176,9 +176,10 @@ func redirect(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	u := url.URL{
-		Scheme: "https",
-		Host:   conf.CanonicalHost,
-		Path:   r.URL.Path,
+		Scheme:   "https",
+		Host:     conf.CanonicalHost,
+		Path:     r.URL.Path,
+		RawQuery: r.URL.RawQuery,
 	}
 	http.Redirect(w, r, u.String(), http.StatusMovedPermanently)
 	return true
@@ -369,8 +370,12 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Path != "/group/"+name+"/" {
-		http.Redirect(w, r, "/group/"+name+"/",
-			http.StatusPermanentRedirect)
+		u := "/group/" + name + "/"
+		// keep the query, it may carry a token
+		if r.URL.RawQuery != "" {
+			u += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, u, http.StatusPermanentRedirect)
 		return
 	}
 
