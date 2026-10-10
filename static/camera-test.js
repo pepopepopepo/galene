@@ -44,6 +44,23 @@ async function getPermissionsConstraints() {
 }
 
 /**
+ * Returns a deviceId constraint for a device chosen by the user.  It is
+ * exact if the browser lists the device, so that the browser cannot
+ * silently open a different one; otherwise, for example when the value is
+ * a label used before permission was granted, it is only a preference.
+ *
+ * @param {string} id
+ * @param {MediaDeviceKind} kind
+ * @returns {Promise<ConstrainDOMString>}
+ */
+async function deviceIdConstraint(id, kind) {
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    if(devices.some(d => d.kind === kind && d.deviceId === id))
+        return {exact: id};
+    return id;
+}
+
+/**
  * CameraTest encapsulates the camera and video test UI.
  *
  * @param {HTMLVideoElement} video
@@ -127,9 +144,13 @@ CameraTest.prototype.setStream = async function(force) {
 
     let settings = getSettings();
     /** @type{boolean|MediaTrackConstraints} */
-    let a = settings.audio ? {deviceId: settings.audio} : false;
+    let a = settings.audio ?
+        {deviceId: await deviceIdConstraint(settings.audio, 'audioinput')} :
+        false;
     /** @type{boolean|MediaTrackConstraints} */
-    let v = settings.video ? {deviceId: settings.video} : false;
+    let v = settings.video ?
+        {deviceId: await deviceIdConstraint(settings.video, 'videoinput')} :
+        false;
     if(v) {
         let resolution = settings.resolution;
         if(resolution) {
@@ -143,15 +164,15 @@ CameraTest.prototype.setStream = async function(force) {
         }
     }
 
+    // release the old devices first: on some systems, a camera that is
+    // already open yields black frames when opened again
+    if(old)
+        stopStream(old);
+
     let constraints = {audio: a, video: v};
-    try {
-        let stream = await navigator.mediaDevices.getUserMedia(constraints);
-        this.video.srcObject = stream;
-        await this.video.play();
-    } finally {
-        if(old)
-            stopStream(old);
-    }
+    let stream = await navigator.mediaDevices.getUserMedia(constraints);
+    this.video.srcObject = stream;
+    await this.video.play();
 }
 
 CameraTest.prototype.startAnalyser = async function() {

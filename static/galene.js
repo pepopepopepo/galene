@@ -1255,9 +1255,13 @@ async function addLocalMedia(localId) {
     let settings = getSettings();
 
     /** @type{boolean|MediaTrackConstraints} */
-    let audio = settings.audio ? {deviceId: settings.audio} : false;
+    let audio = settings.audio ?
+        {deviceId: await deviceIdConstraint(settings.audio, 'audioinput')} :
+        false;
     /** @type{boolean|MediaTrackConstraints} */
-    let video = settings.video ? {deviceId: settings.video} : false;
+    let video = settings.video ?
+        {deviceId: await deviceIdConstraint(settings.video, 'videoinput')} :
+        false;
 
     if(video) {
         let resolution = settings.resolution;
@@ -2414,7 +2418,7 @@ async function gotJoined(kind, group, perms, status, data, error, message) {
         if(present) {
             if(present === 'mike')
                 updateSettings({video: ''});
-            else if(present === 'both')
+            else if(present === 'both' && getSettings().video === '')
                 delSetting('video');
             reflectSettings();
 
