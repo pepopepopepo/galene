@@ -1293,8 +1293,25 @@ async function addLocalMedia(localId) {
     try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch(e) {
-        displayError(e);
-        return;
+        if(!video || !audio) {
+            displayError(e);
+            return;
+        }
+        // The camera may be what failed; try the microphone alone.
+        try {
+            stream = await navigator.mediaDevices.getUserMedia(
+                {audio: audio, video: false},
+            );
+        } catch(e2) {
+            displayError(e);
+            return;
+        }
+        displayWarning(
+            `Couldn't open the camera (${e}), using the microphone only`,
+        );
+        video = false;
+        updateSettings({video: ''});
+        reflectSettings();
     }
 
     setMediaChoices(true);
