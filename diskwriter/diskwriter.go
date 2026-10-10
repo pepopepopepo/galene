@@ -156,6 +156,12 @@ func (client *Client) PushConn(g *group.Group, id string, up conn.Up, tracks []c
 		return nil
 	}
 
+	// A new connection may be pushed before its first track has arrived;
+	// it is pushed again once it has tracks.  Nothing to record before.
+	if len(tracks) == 0 {
+		return nil
+	}
+
 	if client.down == nil {
 		client.down = make(map[string]*diskConn)
 	}

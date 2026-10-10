@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jech/galene/conn"
+	"github.com/jech/galene/group"
 	"github.com/jech/galene/rtptime"
 )
 
@@ -169,5 +171,39 @@ func TestAdjustOriginLocalRemote(t *testing.T) {
 
 	if c.tracks[0].origin != some(132) {
 		t.Errorf("Expected 132, got %v", value(c.tracks[0].origin))
+	}
+}
+
+type testUp struct{}
+
+func (testUp) AddLocal(conn.Down) error { return nil }
+func (testUp) DelLocal(conn.Down) bool  { return false }
+func (testUp) Id() string               { return "up" }
+func (testUp) Label() string            { return "camera" }
+func (testUp) User() (string, string)   { return "user-id", "user" }
+
+func TestPushConnNoTracks(t *testing.T) {
+	dir := Directory
+	Directory = t.TempDir()
+	t.Cleanup(func() { Directory = dir })
+
+	g, err := group.Add("diskwriter-test", &group.Description{})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	client, err := New(g)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer client.Close()
+
+	// A new connection is pushed before its first track arrives.
+	err = client.PushConn(g, "up", testUp{}, nil, "")
+	if err != nil {
+		t.Errorf("PushConn with no tracks: %v", err)
+	}
+	if len(client.down) != 0 {
+		t.Errorf("PushConn with no tracks: %v connections, expected 0",
+			len(client.down))
 	}
 }
