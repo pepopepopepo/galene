@@ -3789,6 +3789,84 @@ document.getElementById('input').onkeypress = function(e) {
     }
 };
 
+/**
+ * quoteUsername quotes a user name the way parseCommand reads it back,
+ * if the name needs it.  An open quote is not closed, so that a partial
+ * name can be completed further.
+ *
+ * @param {string} name
+ * @param {boolean} open
+ * @param {boolean} [force]
+ * @returns {string}
+ */
+function quoteUsername(name, open, force) {
+    if(!force && !/[ "'\\]/.test(name))
+        return name;
+    return '"' + name.replace(/["\\]/g, '\\$&') + (open ? '' : '"');
+}
+
+/**
+ * completeUsername completes the user name being typed after a command
+ * that takes a user, such as /msg.  It returns the completed text, the
+ * text itself if there is nothing to add, or null if the text does not
+ * end in such a user name.
+ *
+ * @param {string} text
+ * @returns {string|null}
+ */
+function completeUsername(text) {
+    if(!serverConnection)
+        return null;
+    let m = /^\/(\w+) +(?:(["'])([^"'\\]*)|([^ "'\\]*))$/.exec(text);
+    if(!m)
+        return null;
+    let c = commands[m[1]];
+    if(!c || !c.parameters || !c.parameters.startsWith('user'))
+        return null;
+    let quoted = !!m[2];
+    let partial = quoted ? m[3] : m[4];
+    let start = text.length - partial.length - (quoted ? 1 : 0);
+    /** @type {Array<string>} */
+    let names = [];
+    for(let id in serverConnection.users) {
+        let name = serverConnection.users[id].username;
+        if(id !== serverConnection.id && name &&
+           name.toLowerCase().startsWith(partial.toLowerCase()) &&
+           names.indexOf(name) < 0)
+            names.push(name);
+    }
+    if(names.length === 0)
+        return text;
+    if(names.length === 1)
+        return text.slice(0, start) + quoteUsername(names[0], false) + ' ';
+    let prefix = names.reduce((p, n) => {
+        let i = 0;
+        while(i < p.length && i < n.length && p[i] === n[i])
+            i++;
+        return p.slice(0, i);
+    });
+    if(prefix.length <= partial.length) {
+        localMessage('Matching users: ' + names.join(', '));
+        return text;
+    }
+    let force = quoted || names.some(n => quoteUsername(n, false) !== n);
+    return text.slice(0, start) + quoteUsername(prefix, true, force);
+}
+
+document.getElementById('input').onkeydown = function(e) {
+    if(e.key !== 'Tab' || e.ctrlKey || e.shiftKey || e.altKey || e.metaKey)
+        return;
+    let input = /** @type {HTMLTextAreaElement} */
+        (document.getElementById('input'));
+    let before = input.value.slice(0, input.selectionStart);
+    let completed = completeUsername(before);
+    if(completed === null)
+        return;
+    e.preventDefault();
+    input.value = completed + input.value.slice(input.selectionEnd);
+    input.selectionStart = input.selectionEnd = completed.length;
+};
+
 function chatResizer(e) {
     e.preventDefault();
     let full_width = document.getElementById("mainrow").offsetWidth;
