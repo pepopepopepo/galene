@@ -2761,7 +2761,30 @@ function formatToken(token, details) {
     ];
 }
 
-const urlRegexp = /https?:\/\/[-a-zA-Z0-9@:%/._\\+~#&()=?]+[-a-zA-Z0-9@:%/_\\+~#&()=]/g;
+const urlRegexp = /https?:\/\/[^\s<>"]+/g;
+
+/**
+ * trimURL removes the characters at the end of a URL that most likely
+ * belong to the surrounding text: punctuation, and a closing bracket
+ * that the URL does not open.
+ *
+ * @param {string} url
+ * @returns {string}
+ */
+function trimURL(url) {
+    /** @type {Object<string,string>} */
+    let openers = {')': '(', ']': '[', '}': '{'};
+    let count = (/** @type {string} */ c) => url.split(c).length - 1;
+    while(url.length > 0) {
+        let c = url[url.length - 1];
+        if('.,;:!?\'*'.includes(c) ||
+           (c in openers && count(openers[c]) < count(c)))
+            url = url.slice(0, -1);
+        else
+            break;
+    }
+    return url;
+}
 
 /**
  * @param {string} text
@@ -2775,14 +2798,17 @@ function formatText(text) {
         let m = r.exec(text);
         if(!m)
             break;
+        let url = trimURL(m[0]);
+        if(!/^https?:\/\/./.test(url))
+            continue;
         result.push(document.createTextNode(text.slice(pos, m.index)));
         let a = document.createElement('a');
-        a.href = m[0];
-        a.textContent = m[0];
+        a.href = url;
+        a.textContent = url;
         a.target = '_blank';
         a.rel = 'noreferrer noopener';
         result.push(a);
-        pos = m.index + m[0].length;
+        pos = m.index + url.length;
     }
     result.push(document.createTextNode(text.slice(pos)));
 
